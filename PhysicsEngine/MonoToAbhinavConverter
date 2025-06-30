@@ -1,0 +1,12 @@
+using Microsoft.Xna.Framework.Vector2;
+
+namespace AbhinavPhysicsEngine
+{
+    public static class MonoToAbhinavConverter
+    {
+        public static Vector2 ToVector(AbhinavVector vector)
+        {
+            return new Vector2(vector.X, vector.Y);
+        }
+    }
+}
