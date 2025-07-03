@@ -71,7 +71,7 @@ namespace AbhinavPhysicsEngine
                 DrawFilledTriangle(graphicsDevice, typeConverter.ToVector(vertices[0]), typeConverter.ToVector(vertices[1]), typeConverter.ToVector(vertices[2]), fillColor);
                 DrawFilledTriangle(graphicsDevice, typeConverter.ToVector(vertices[0]), typeConverter.ToVector(vertices[3]), typeConverter.ToVector(vertices[2]), fillColor);
                 //For some weird reason, ALL 4 of these are needed to create a triangle THAT CAN BE FILLED????? I CANNOT Explain this code 
-                
+
             }
         }
 

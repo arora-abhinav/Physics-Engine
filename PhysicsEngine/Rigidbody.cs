@@ -1,5 +1,6 @@
 using System;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -35,12 +36,13 @@ namespace AbhinavPhysicsEngine
         private bool transformUpdateRequired; //This bool essentially checks if a transformation to vertices must be done due to the change in position or rotation. 
         // So, each vertex will go under the same transformation
         public readonly int[] triangulatedVertices; //This is an array that stores the indices of the triangulatted vertices created from the box body
-
+        public AbhinavVector forceVector;
         private Rigidbody(AbhinavVector position,
         float density, float mass, float resitution, float surfaceArea, bool isStatic, float radius, float width, float Length, typeOfShape shape)
         {
             this.shapeType = shape;
             this.position = position;
+            this.forceVector = AbhinavVector.zeroVector;
             this.linearVelocity = AbhinavVector.zeroVector;
             this.rotation = 0f;
             this.angularVelocity = 0f;
@@ -66,6 +68,47 @@ namespace AbhinavPhysicsEngine
             }
             this.transformUpdateRequired = true;
 
+        }
+        public AbhinavVector LinearVelocity
+        {
+            get { return this.linearVelocity; } //The keyword get only works with properties, not with methods
+            set { this.linearVelocity = value; } // Allows to set the value of the internal velocity to an instance of the rigidbody object
+        }
+        public void Step(float time)
+        {
+            AbhinavVector acceleration = this.forceVector / this.mass;
+            this.linearVelocity += acceleration * time; //derived from the SUVAT equations
+
+            this.position += linearVelocity * time;
+            this.rotation += angularVelocity * time;
+
+            this.forceVector = AbhinavVector.zeroVector;
+            maintainObjectinScreen(800, 480);
+            this.transformUpdateRequired = true;
+        }
+        public void maintainObjectinScreen(float screenDimensionX, float screenDimensionY)
+        {
+            if (this.position.X < 0)
+            {
+                this.position = new AbhinavVector(screenDimensionX, this.position.Y);
+            }
+            if (this.position.X > screenDimensionX)
+            {
+                this.position = new AbhinavVector(0, this.position.Y);
+            }
+            if (this.position.Y < 0)
+            {
+                this.position = new AbhinavVector(this.position.X, screenDimensionY);
+            }
+            if (this.position.Y > screenDimensionY)
+            {
+                this.position = new AbhinavVector(this.position.X, 0);
+            }
+            //This is a temporary function that prevents objects from going out of the screen
+        }
+        public void addForce(AbhinavVector force)
+        {
+            this.forceVector = force;
         }
         public static AbhinavVector[] createBoxVertices(float width, float height)
         {
@@ -161,7 +204,7 @@ namespace AbhinavPhysicsEngine
             }
             resitution = customMath.Clamp(resitution, 0, 1); //Restitution fluctuates between 0 and 1
                                                              //Restitution formula = (final velocity of object b - final velocity of object a)/(Initial velocity of object b - initial velocity of object a)
-            mass = density * surfaceArea;//Assumes that the circle is a flipped over cylinder with a height of 1 meter. Therefore, the mass = density * volume
+            mass = density * surfaceArea;//Assumes that the box is a flipped over rectangle with a height of 1 meter. Therefore, the mass = density * volume
             body = new Rigidbody(position, density, mass, resitution, surfaceArea, isStatic, 0f, width, height, typeOfShape.Box);
             return true;
         }

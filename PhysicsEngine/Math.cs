@@ -74,6 +74,16 @@ namespace AbhinavPhysicsEngine
 
             return true;
         }
-
+        public static AbhinavVector getCentroid(AbhinavVector[] vertices)
+        {
+            float sumX = 0;
+            float sumY = 0;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                sumX += vertices[i].X;
+                sumY += vertices[i].Y;
+            }
+            return new AbhinavVector(sumX / vertices.Length, sumY / vertices.Length);
+        }
     }
 }

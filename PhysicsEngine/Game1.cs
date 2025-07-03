@@ -7,6 +7,7 @@ using AbhinavPhysicsEngine;
 using MonoGame;
 using System.Collections.Generic;
 using System.Text;
+using System.Reflection.Metadata.Ecma335;
 
 namespace PhysicsEngine;
 
@@ -20,7 +21,10 @@ public class Game1 : Game
     AbhinavVector testVectorTwo = new AbhinavVector(100, 200);
     private List<Rigidbody> rigidbodiesList;
     typeOfShape shapeType;
+    World world;
     int type;
+    AbhinavVector screenDimensions = new AbhinavVector();
+    public int playerInt = 0;
 
     public Game1()
     {
@@ -28,12 +32,12 @@ public class Game1 : Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
     }
-
     protected override void Initialize()
     {
         base.Initialize();
+        world = new World();
         rigidbodiesList = new List<Rigidbody>();
-        int maxBodies = 10;
+        int maxBodies = 30;
         int attempts = 0;
         Random randomNumber = new Random();
 
@@ -46,11 +50,11 @@ public class Game1 : Game
 
             if (type == 0)
             {
-                Rigidbody.createBox(new AbhinavVector(xPosition, yPosition), 100, 40, 1000, 1f, false, out newBody);
+                Rigidbody.createBox(new AbhinavVector(xPosition, yPosition), 40, 40, 1, 1f, false, out newBody);
             }
             else
             {
-                Rigidbody.createCircle(new AbhinavVector(xPosition, yPosition), 30, 1000, 1, false, out newBody);
+                Rigidbody.createCircle(new AbhinavVector(xPosition, yPosition), 20, 1, 1, false, out newBody);
             }
 
             bool isColliding = false;
@@ -95,6 +99,7 @@ public class Game1 : Game
             if (!isColliding)
             {
                 rigidbodiesList.Add(newBody);
+                world.addBodies(newBody);
             }
 
             attempts++;
@@ -115,9 +120,11 @@ public class Game1 : Game
             Exit();
 
         // TODO: Add your update logic here
+        world.timeStep((float)gameTime.ElapsedGameTime.TotalSeconds);
         float xDirection = 0f;
         float yDirection = 0f;
         float speed = 80f;
+        float forceMagnitude = 400000f; //This is equivalent to speed and is a parameter that will be multiplied by the NORMALIZED force vector
         keyboardState = Keyboard.GetState();
         if (keyboardState.IsKeyDown(Keys.Up))
         {
@@ -138,79 +145,31 @@ public class Game1 : Game
 
         if (xDirection != 0 || yDirection != 0)
         {
+            /*
+            This implementation of the player's motion checks the direction of motion by sheer change in position
+
             AbhinavVector directionVector = customMath.normalizedVector(new AbhinavVector(xDirection, yDirection));
             //gameTime.ElapsedGameTime.TotalSeconds measures the time between each frame. This allows the progression of the circle to be in a specific unit such as m/s
             AbhinavVector velocityVector = directionVector * speed * (float)gameTime.ElapsedGameTime.TotalSeconds;
-            rigidbodiesList[0].moveBody(velocityVector);
+            rigidbodiesList[playerInt].moveBody(velocityVector);
+            */
+
+            //This implementation of the player's motion adds force for the motion
+            AbhinavVector forceDirection = customMath.normalizedVector(new AbhinavVector(xDirection, yDirection));
+            //gameTime.ElapsedGameTime.TotalSeconds measures the time between each frame. This allows the progression of the circle to be in a specific unit such as m/s
+            AbhinavVector forceVector = forceDirection * forceMagnitude;
+            rigidbodiesList[0].addForce(forceVector);
             
+        }
+        for (int i = 0; i < rigidbodiesList.Count; i++)
+        {
+            Console.WriteLine(rigidbodiesList[i].mass);
         }
         if (keyboardState.IsKeyDown(Keys.R))
         {
-            rigidbodiesList[0].rotateBody(((float)Math.PI / 2f) * (float)gameTime.ElapsedGameTime.TotalSeconds);  
+            rigidbodiesList[playerInt].rotateBody(((float)Math.PI / 2f) * (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
-        //Collision checking for ALL objects
-        for (int i = 0; i < rigidbodiesList.Count; i++)
-        {
-            //#if false
-            for (int j = i + 1; j < rigidbodiesList.Count; j++)
-            {
-                if ((int)rigidbodiesList[i].shapeType == 1 & (int)rigidbodiesList[j].shapeType == 1) //This means both shapes in collision are circles
-                {
-                    if (Collisions.circleIsIntersecting(rigidbodiesList[i], rigidbodiesList[j], out AbhinavVector normalVectorTwo, out float intersectionDistTwo))
-                    {
-                        rigidbodiesList[i].moveBody(normalVectorTwo * -1 * intersectionDistTwo / 2);
-                        rigidbodiesList[j].moveBody(normalVectorTwo * intersectionDistTwo / 2);
-                    }
-                }
-                if ((int)rigidbodiesList[i].shapeType == 0 & (int)rigidbodiesList[j].shapeType == 0) //This means both shapes in collisions are boxes
-                {
-                    if (Collisions.intersectingPolygons(rigidbodiesList[i].getTransformedVertices(), rigidbodiesList[j].getTransformedVertices(), out float intersectionDistTwo, out AbhinavVector normalVectorTwo))
-                    {
-                        rigidbodiesList[i].moveBody(normalVectorTwo * -1 * intersectionDistTwo / 2);
-                        rigidbodiesList[j].moveBody(normalVectorTwo * intersectionDistTwo / 2);
-                    }
-                }
-                if ((int)rigidbodiesList[i].shapeType == 0 & (int)rigidbodiesList[j].shapeType == 1) //This checks if the first object is a box and the second is a circle
-                {
-                    if (Collisions.intersectingCirclesAndPolygons(rigidbodiesList[j].position, rigidbodiesList[j].radius, rigidbodiesList[i].getTransformedVertices(), out AbhinavVector normalVectorTwo, out float intersectionDistTwo))
-                    {
-                        rigidbodiesList[i].moveBody(normalVectorTwo * -1 * intersectionDistTwo / 2);
-                        rigidbodiesList[j].moveBody(normalVectorTwo * intersectionDistTwo / 2);
-                    }
-                }
-                if ((int)rigidbodiesList[i].shapeType == 1 & (int)rigidbodiesList[j].shapeType == 0) //This checks if the first object is a circle and the second is a box
-                {
-                    if (Collisions.intersectingCirclesAndPolygons(rigidbodiesList[i].position, rigidbodiesList[i].radius, rigidbodiesList[j].getTransformedVertices(), out AbhinavVector normalVectorTwo, out float intersectionDistTwo))
-                    {
-                        rigidbodiesList[i].moveBody(normalVectorTwo * -1 * intersectionDistTwo / 2);
-                        rigidbodiesList[j].moveBody(normalVectorTwo * intersectionDistTwo / 2);
-                    }
-                }
-            }
-            //#endif
-            /*
-            The following code only works for circle collisions
-            AbhinavVector normalVector;
-            float intersectionDist;
-            if (Collisions.circleIsIntersecting(rigidbodiesList[0], rigidbodiesList[i], out normalVector, out intersectionDist))
-            {
-                rigidbodiesList[0].moveBody(normalVector * -1 * intersectionDist / 2);
-                rigidbodiesList[i].moveBody(normalVector * intersectionDist / 2);
-                //Will eventually change this because it doesnt make sense that I need a specific if statement for a SPECIFIED player object
-            }
-            for (int j = i + 1; j < rigidbodiesList.Count; j++)
-            {
-                AbhinavVector normalVectorTwo;
-                float intersectionDistTwo;
-                if (Collisions.circleIsIntersecting(rigidbodiesList[i], rigidbodiesList[j], out normalVectorTwo, out intersectionDistTwo))
-                {
-                    rigidbodiesList[i].moveBody(normalVectorTwo * -1 * intersectionDistTwo / 2);
-                    rigidbodiesList[j].moveBody(normalVectorTwo * intersectionDistTwo/2);
-                }
-            }
-            */
-        }
-            base.Update(gameTime);
+        base.Update(gameTime);
     }
 
 

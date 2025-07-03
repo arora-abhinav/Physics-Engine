@@ -29,3 +29,4 @@ C:\Users\Abhinav Arora\Desktop\Abhinav's Physics Engine\PhysicsEngine\obj\Debug\
 C:\Users\Abhinav Arora\Desktop\Abhinav's Physics Engine\PhysicsEngine\obj\Debug\net8.0\PhysicsEngine.pdb
 C:\Users\Abhinav Arora\Desktop\Abhinav's Physics Engine\PhysicsEngine\obj\Debug\net8.0\PhysicsEngine.genruntimeconfig.cache
 C:\Users\Abhinav Arora\Desktop\Abhinav's Physics Engine\PhysicsEngine\obj\Debug\net8.0\ref\PhysicsEngine.dll
+C:\Users\Abhinav Arora\Desktop\Abhinav's Physics Engine\PhysicsEngine\obj\Debug\net8.0\PhysicsEngine.sourcelink.json

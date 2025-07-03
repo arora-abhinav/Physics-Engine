@@ -27,6 +27,11 @@ public static class Collisions
         //The intersection of circles and polygons work using the same separating axis theorem. The projection axis is simply the vector with the least smallest distance between the vertices of the polygon and the center of the circle
         //The parameters of circles are decided by projecting the center of the circle onto the projection axis and then adding and subtracting the radius onto the projected center to get the max and the min values for the parameters
         List<AbhinavVector> edges = new List<AbhinavVector>();
+        float minOfPolygon = new float();
+        float maxOfPolygon = new float();
+        float minOfCircle = new float();
+        float maxOfCircle = new float();
+        float parameterForCircleCenter = new float();
         //Edges of the first polygon
         for (int i = 0; i < polygonVerts.Length; i++)
         {
@@ -44,7 +49,7 @@ public static class Collisions
         AbhinavVector centerToClosestVertex = new AbhinavVector(float.MaxValue, float.MaxValue);//This vector is between the center of the circle and the closest point to the circle and will be the vector onto which all the points will be projected
         for (int i = 0; i < polygonVerts.Length; i++)
         {
-            AbhinavVector toVertex = circlePosition - polygonVerts[i];
+            AbhinavVector toVertex = polygonVerts[i] - circlePosition;
             if (customMath.vectorLength(toVertex) < customMath.vectorLength(centerToClosestVertex))
             {
                 centerToClosestVertex = customMath.normalizedVector(toVertex);
@@ -59,7 +64,7 @@ public static class Collisions
             normals[k] = customMath.normalizedVector(new AbhinavVector(xPos, yPos));
         }
         normals[normals.Length - 1] = centerToClosestVertex;
-        AbhinavVector movementVector = new AbhinavVector();
+        AbhinavVector movementVector = new AbhinavVector(0,0);
         AbhinavVector startingPosition = new AbhinavVector(0, 0);
         float[] parametersForPolygon = new float[polygonVerts.Length];
         float[] parametersForCircle = new float[2];
@@ -75,41 +80,36 @@ public static class Collisions
                 parametersForPolygon[m] = parameter;
             }
             //For circles, the parameters are calculated such that the center of the circle is initially projected onto the projection axis and then the minimum and maximum are 'plus minus' radius from the center of the circle in the same direction as projectionAxis.
-            float parameterForCircleCenter = normals[o].X * (circlePosition.X - startingPosition.X) + normals[o].Y * (circlePosition.Y - startingPosition.Y);
+            parameterForCircleCenter = normals[o].X * (circlePosition.X - startingPosition.X) + normals[o].Y * (circlePosition.Y - startingPosition.Y);
             parametersForCircle[0] = parameterForCircleCenter + circleRadius;
             parametersForCircle[1] = parameterForCircleCenter - circleRadius;
-            float maxOfPolygon = parametersForPolygon.Max();
-            float minOfPolygon = parametersForPolygon.Min();
-            float maxOfCircle = parametersForCircle.Max();
-            float minOfCircle = parametersForCircle.Min();
-            
+            maxOfPolygon = parametersForPolygon.Max();
+            minOfPolygon = parametersForPolygon.Min();
+            maxOfCircle = parametersForCircle.Max();
+            minOfCircle = parametersForCircle.Min();
+
             if (minOfCircle >= maxOfPolygon || minOfPolygon >= maxOfCircle)
             {
                 moveDist = 0;
                 moveVector = AbhinavVector.zeroVector;
                 return false;
             }
-            else
+            float overlap = Math.Min(maxOfPolygon, maxOfCircle) - Math.Max(minOfPolygon, minOfCircle);//Calculates the lowest overlap out of all the overlaps
+            if (overlap < minOverlap)
             {
-                float overlap = Math.Min(maxOfPolygon, maxOfCircle) - Math.Max(minOfPolygon, minOfCircle);//Calculates the lowest overlap out of all the overlaps
-                if (overlap < minOverlap)
+                minOverlap = overlap;//If a NEW SMALLEST overlap is obtained then that will be set as the minimum overla 
+                movementVector = normals[o];
+                // Ensure correct direction
+                //This code block is important because it checks the relative positions of both polygons. If the second polygon is towards the right of the first polygon
+                //the direction of motion is reversed and the second polygon is pushed outwards from the first polygon instead of pulled inwards
+                AbhinavVector centerOfPolygon = customMath.getCentroid(polygonVerts);
+                float polygonProjectedCenter = normals[o].X * (centerOfPolygon.X - startingPosition.X) + normals[o].Y * (centerOfPolygon.Y - startingPosition.Y);
+                if (parameterForCircleCenter < polygonProjectedCenter)
                 {
-                    minOverlap = overlap;//If a NEW SMALLEST overlap is obtained then that will be set as the minimum overla 
-                    movementVector = normals[o];
-
-                    // Ensure correct direction
-                    //This code block is important because it checks the relative positions of both polygons. If the second polygon is towards the right of the first polygon
-                    //the direction of motion is reversed and the second polygon is pushed outwards from the first polygon instead of pulled inwards
-                    float centerA = (minOfPolygon + maxOfPolygon) / 2f;
-                    float centerB = (minOfCircle + maxOfCircle) / 2f;
-                    if (centerB < centerA)
-                    {
-                        movementVector = AbhinavVector.negateVector(normals[o]);
-                    }
+                    movementVector = AbhinavVector.negateVector(movementVector);
                 }
-            }          
+            }     
         }
-        
         moveDist = minOverlap;
         moveVector = movementVector;
         return true;
