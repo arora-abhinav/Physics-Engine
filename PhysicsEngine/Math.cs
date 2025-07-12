@@ -6,6 +6,7 @@ namespace AbhinavPhysicsEngine
 {
     public static class customMath
     {
+        static float smallValue;
         public static float Clamp(float value, float min, float max)
         {
             if (min == max)
@@ -84,6 +85,34 @@ namespace AbhinavPhysicsEngine
                 sumY += vertices[i].Y;
             }
             return new AbhinavVector(sumX / vertices.Length, sumY / vertices.Length);
+        }
+        public static void pointToVectorDistance(AbhinavVector point, AbhinavVector startVertex, AbhinavVector endVertex, out float distance, out AbhinavVector closestPoint, out float parameter)
+        {
+            AbhinavVector directionVector = endVertex - startVertex;
+            parameter = customMath.dotProduct(point - startVertex, directionVector) / customMath.dotProduct(directionVector, directionVector);
+            parameter = customMath.Clamp(parameter, 0, 1);
+            closestPoint = startVertex + directionVector * parameter;
+            distance = (float)customMath.vectorLength(closestPoint - point);
+        }
+        public static bool nearlyEqual(float valueOne, float valueTwo)
+        {
+            float result = Math.Abs(valueTwo - valueOne);
+            //The below value was arbritarily chosen
+            if (result < smallValue) //Due to floating point precision, this method of comparing the difference to check if the values are NEARLY equal is required
+            {
+                return true;
+            }
+            return false;
+        }
+        public static bool nearlyEqualVector(AbhinavVector vectorOne, AbhinavVector vectorTwo)
+        {
+            float xResult = Math.Abs(vectorOne.X - vectorTwo.X);
+            float yResult = Math.Abs(vectorTwo.Y - vectorOne.X);
+            if (xResult < smallValue && yResult < smallValue)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

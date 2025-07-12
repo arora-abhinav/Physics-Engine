@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using Microsoft.Xna.Framework;
@@ -29,6 +30,7 @@ namespace AbhinavPhysicsEngine
         //Applicable to rectangles
         public readonly float width;
         public readonly float Length;
+        public readonly float inertia;
 
         public readonly typeOfShape shapeType;
         public readonly AbhinavVector[] allVertices; //This array will store the 'untransformed' vertices of a rigidbody (Only for boxes and not for circles)
@@ -37,6 +39,8 @@ namespace AbhinavPhysicsEngine
         // So, each vertex will go under the same transformation
         public readonly int[] triangulatedVertices; //This is an array that stores the indices of the triangulatted vertices created from the box body
         public AbhinavVector forceVector;
+        public readonly float invMass;
+        public readonly float invInertia;
         private Rigidbody(AbhinavVector position,
         float density, float mass, float resitution, float surfaceArea, bool isStatic, float radius, float width, float Length, typeOfShape shape)
         {
@@ -54,6 +58,7 @@ namespace AbhinavPhysicsEngine
             this.radius = radius;
             this.width = width;
             this.Length = Length;
+            this.inertia = getRotationalInertia(this);
             if (this.shapeType is typeOfShape.Box)
             {
                 allVertices = createBoxVertices(this.width, this.Length);
@@ -66,6 +71,16 @@ namespace AbhinavPhysicsEngine
                 allTransformedVertices = null;
                 triangulatedVertices = null;
             }
+            if (this.isStatic == false)
+            {
+                invMass = 1 / mass;
+                this.invInertia = 1 / this.inertia;
+            }
+            else
+            {
+                invMass = 0;
+                this.invInertia = 0; //Don't want any inertia 
+            }
             this.transformUpdateRequired = true;
 
         }
@@ -74,17 +89,78 @@ namespace AbhinavPhysicsEngine
             get { return this.linearVelocity; } //The keyword get only works with properties, not with methods
             set { this.linearVelocity = value; } // Allows to set the value of the internal velocity to an instance of the rigidbody object
         }
-        public void Step(float time)
+        private float getRotationalInertia(Rigidbody body)
         {
-            AbhinavVector acceleration = this.forceVector / this.mass;
-            this.linearVelocity += acceleration * time; //derived from the SUVAT equations
+            //In both these cases, the axis of inertia is through the z axis (through the center of the object)
+            float inertia = 0;
+            if (body.shapeType is typeOfShape.Box)
+            {
+                inertia = (1 / 12f) * mass * (width * width + Length * Length); //This is the formula for the moment of inertia for a flat box or rectangular shape
+            }
+            else
+            {
+                inertia = 1 / 2 * mass * radius * radius; //This is the formula of the rotational inertia of a flat circle body
+            }
+            return inertia;
+        }
+        public AABB GetAABB()
+        {
+            if (this.shapeType is typeOfShape.Circle)
+            {
+                float minX = position.X - radius;
+                float maxX = position.X + radius;
+                float minY = position.Y + radius;
+                float maxY = position.Y - radius;
+                return new AABB(new AbhinavVector(minX, minY), new AbhinavVector(maxX, maxY));
+            }
+            else
+            {
+                AbhinavVector[] transformedVertices = getTransformedVertices();
+                float[] xPos = new float[4];
+                float[] yPos = new float[4];
+                for (int i = 0; i < getTransformedVertices().Length; i++)
+                {
+                    xPos[i] = transformedVertices[i].X;
+                    yPos[i] = transformedVertices[i].Y;
+                }
+                float minX = xPos.Min();
+                float maxX = xPos.Max();
+                float minY = yPos.Min();
+                float maxY = yPos.Max();
+                return new AABB(new AbhinavVector(minX, minY), new AbhinavVector(maxX, maxY));
+            }
+        }
+        public void Step(float time, AbhinavVector gravityVector)
+        {
+            //AbhinavVector acceleration = this.forceVector / this.mass;
+            //this.linearVelocity += acceleration * time; //derived from the SUVAT equations
+            //This has also been commented out for now to see the effect of gravity
+            if (isStatic == false)
+            {
+                this.linearVelocity += gravityVector * time;
 
-            this.position += linearVelocity * time;
-            this.rotation += angularVelocity * time;
 
-            this.forceVector = AbhinavVector.zeroVector;
-            maintainObjectinScreen(800, 480);
-            this.transformUpdateRequired = true;
+                this.position += linearVelocity * time;
+                this.rotation += angularVelocity * time;
+
+                this.forceVector = AbhinavVector.zeroVector;
+                //maintainObjectinScreen(800, 480); This is commented out to account for gravity
+                this.transformUpdateRequired = true;
+            }
+            else
+            {
+                AbhinavVector localGravityVector = gravityVector;
+                this.linearVelocity = AbhinavVector.zeroVector;
+
+                this.position += linearVelocity * time;
+                this.rotation += angularVelocity * time;
+
+                this.forceVector = AbhinavVector.zeroVector;
+                localGravityVector = AbhinavVector.zeroVector;
+                //maintainObjectinScreen(800, 480); This is commented out to account for gravity
+                this.transformUpdateRequired = true;
+            }
+
         }
         public void maintainObjectinScreen(float screenDimensionX, float screenDimensionY)
         {

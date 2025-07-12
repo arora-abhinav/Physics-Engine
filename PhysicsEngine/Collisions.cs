@@ -5,6 +5,8 @@ using System.Drawing;
 using System.Linq;
 using System.Net;
 using System.Numerics;
+using System.Reflection.Metadata;
+using System.Security.AccessControl;
 using AbhinavPhysicsEngine;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -22,6 +24,8 @@ public static class Collisions
     4) If the minimum value of the vertex is more than the maximum value of the vertex belonging to the other object, then the objects are not colliding
     5) Otherwise, a normal of another edge of the polygon will be taken for the separating axis theorem test
     */
+
+    public static AbhinavVector circleCollisionPoint;
     public static bool intersectingCirclesAndPolygons(AbhinavVector circlePosition, float circleRadius, AbhinavVector[] polygonVerts, out AbhinavVector moveVector, out float moveDist)
     {
         //The intersection of circles and polygons work using the same separating axis theorem. The projection axis is simply the vector with the least smallest distance between the vertices of the polygon and the center of the circle
@@ -64,7 +68,7 @@ public static class Collisions
             normals[k] = customMath.normalizedVector(new AbhinavVector(xPos, yPos));
         }
         normals[normals.Length - 1] = centerToClosestVertex;
-        AbhinavVector movementVector = new AbhinavVector(0,0);
+        AbhinavVector movementVector = new AbhinavVector(0, 0);
         AbhinavVector startingPosition = new AbhinavVector(0, 0);
         float[] parametersForPolygon = new float[polygonVerts.Length];
         float[] parametersForCircle = new float[2];
@@ -108,12 +112,116 @@ public static class Collisions
                 {
                     movementVector = AbhinavVector.negateVector(movementVector);
                 }
-            }     
+            }
         }
         moveDist = minOverlap;
         moveVector = movementVector;
         return true;
     }
+    public static AbhinavVector circleCircleCollisionPoint(Rigidbody circleOne, Rigidbody circleTwo, out int contactPointNum)
+    {
+        //In a circle to circle collision, there only is 1 point of contact 
+        AbhinavVector connectingCircleCenter = circleTwo.position - circleOne.position;//This is a vector pointing from circleOne to circleTwo
+        AbhinavVector circleOneToRadius = customMath.normalizedVector(connectingCircleCenter) * circleOne.radius;
+        contactPointNum = 1; //In any case with the circle there only is 1 contact point
+        circleCollisionPoint = circleOne.position + circleOneToRadius;
+        return circleCollisionPoint;
+    }
+   public static AbhinavVector circlePolygonCollisionPoint(Rigidbody circle, Rigidbody polygon, out int contactPointCount)
+    {
+        // We're assuming only one contact point
+        contactPointCount = 1;
+
+        AbhinavVector[] polygonVertices = polygon.getTransformedVertices();
+        float shortestDistance = float.MaxValue;
+        AbhinavVector closestContactPoint = new AbhinavVector();
+
+        // Loop through each edge of the polygon
+        for (int i = 0; i < polygonVertices.Length; i++)
+        {
+            AbhinavVector edgeStart = polygonVertices[i];
+            AbhinavVector edgeEnd = polygonVertices[(i + 1) % polygonVertices.Length]; // Wraps around to the first vertex
+
+            AbhinavVector edgeVector = edgeEnd - edgeStart;
+            AbhinavVector circleToEdgeStart = circle.position - edgeStart;
+
+            // Using parametric math for vectors, the center of the circle has been projected onto the edge
+            float projectionScalar = customMath.dotProduct(circleToEdgeStart, edgeVector) / customMath.dotProduct(edgeVector, edgeVector);
+
+            // Clamp to ensure the point lies within the segment
+            projectionScalar = customMath.Clamp(projectionScalar, 0f, 1f);
+            AbhinavVector projectedPoint = edgeStart + edgeVector * projectionScalar;
+            float distance = (float)customMath.vectorDistance(circle.position, projectedPoint);
+
+            // Keep track of the closest point found so far
+            if (distance < shortestDistance)
+            {
+                shortestDistance = distance;
+                closestContactPoint = projectedPoint;
+            }
+        }
+
+        return closestContactPoint;
+    }
+    public static void polygonPolygonContactPoints(Rigidbody polygonOne, Rigidbody polygonTwo, out AbhinavVector contactOne, out AbhinavVector contactTwo, out float contactPointCount)
+    {
+        contactOne = AbhinavVector.zeroVector;
+        contactTwo = AbhinavVector.zeroVector;
+        contactPointCount = 0;
+        float minDist = float.MaxValue;
+        AbhinavVector[] polygonOneVerts = polygonOne.getTransformedVertices();
+        AbhinavVector[] polygonTwoVerts = polygonTwo.getTransformedVertices();
+        for (int i = 0; i < polygonOneVerts.Length; i++)
+        {
+            for (int j = 0; j < polygonTwoVerts.Length; j++)
+            {
+                customMath.pointToVectorDistance(polygonOneVerts[i], polygonTwoVerts[j], polygonTwoVerts[(j + 1) % polygonTwoVerts.Length], out float distance, out AbhinavVector closestPoint, out float parameter);
+                if (customMath.nearlyEqual(minDist, distance) == true)
+                {
+                    //The reason this check is being performed is to account for the case in which the edges adjacent to the closest 2 edges,
+                    //each belonging to each polygon, are collinear. When that happens, there become 2 contact points at exactly the same place
+                    //So, one of the contact points are eliminated. That's why there is no assigned value to contactOne
+                    if (customMath.nearlyEqualVector(closestPoint, contactOne) == false)
+                    {
+                        contactTwo = closestPoint;
+                        contactPointCount = 2;
+                    }
+                }
+                else if (distance < minDist)
+                {
+                    contactPointCount = 1;
+                    minDist = distance;
+                    contactOne = closestPoint;
+                }
+            }
+        }
+        for (int i = 0; i < polygonTwoVerts.Length; i++)
+        {
+            for (int j = 0; j < polygonOneVerts.Length; j++)
+            {
+                customMath.pointToVectorDistance(polygonTwoVerts[i], polygonOneVerts[j], polygonOneVerts[(j + 1) % polygonOneVerts.Length], out float distance, out AbhinavVector closestPoint, out float parameter);
+                if (customMath.nearlyEqual(minDist, distance) == true)
+                {
+                    //The reason this check is being performed is to account for the case in which the edges adjacent to the closest 2 edges,
+                    //each belonging to each polygon, are collinear. When that happens, there become 2 contact points at exactly the same place
+                    //So, one of the contact points are eliminated. That's why there is no assigned value to contactOne
+                    if (customMath.nearlyEqualVector(closestPoint, contactOne) == false)
+                    {
+                        contactTwo = closestPoint;
+                        contactPointCount = 2;
+                    }
+                }
+                else if (distance < minDist)
+                {
+                    contactPointCount = 1;
+                    minDist = distance;
+                    contactOne = closestPoint;
+                }
+            }
+        }
+    }
+
+
     public static bool intersectingPolygons(AbhinavVector[] polygonOneVerts, AbhinavVector[] polygonTwoVerts, out float depth, out AbhinavVector moveVector)
     {
         List<AbhinavVector> edges = new List<AbhinavVector>();

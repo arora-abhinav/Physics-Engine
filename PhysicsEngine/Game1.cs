@@ -8,13 +8,15 @@ using MonoGame;
 using System.Collections.Generic;
 using System.Text;
 using System.Reflection.Metadata.Ecma335;
+using System.IO;
 
 namespace PhysicsEngine;
 
 public class Game1 : Game
 {
     private GraphicsDeviceManager graphics;
-    KeyboardState keyboardState;
+    KeyboardState currentKeyboardState;
+    KeyboardState previousKeyboardState;
     private SpriteBatch spriteBatch;
     Texture2D pixel;
     AbhinavVector testVectorOne = new AbhinavVector(200, 300);
@@ -23,8 +25,16 @@ public class Game1 : Game
     typeOfShape shapeType;
     World world;
     int type;
-    AbhinavVector screenDimensions = new AbhinavVector();
+    MouseState currentMouseState;
+    MouseState previousMouseState;
+
     public int playerInt = 0;
+    private int loopCount;
+    bool generateRandomBodies;
+    Rigidbody groundBody;
+    Rigidbody slantedStaticBody;
+    Rigidbody droppingBody; //I will be drawing a box that will drop on the ground body
+
 
     public Game1()
     {
@@ -35,14 +45,23 @@ public class Game1 : Game
     protected override void Initialize()
     {
         base.Initialize();
+        generateRandomBodies = false; //Right now, I am setting generate random bodies to be false because I will implement gravity now
         world = new World();
+        world.setGravityFloat = 100f;//Setting the gravity float to 9.81f
         rigidbodiesList = new List<Rigidbody>();
-        int maxBodies = 30;
+        int maxBodies = 4;
         int attempts = 0;
         Random randomNumber = new Random();
 
-        while (rigidbodiesList.Count < maxBodies && attempts < 10000)
+        while (rigidbodiesList.Count < maxBodies && attempts < 10000 && generateRandomBodies == true)
         {
+            int staticNum = randomNumber.Next(0, 2);
+            bool isStatic = false;
+            if (staticNum == 1 && loopCount != 0) //This basically ensures that the player character (rigidbodiesList[0]) is NOT set to static at all
+            {
+                isStatic = true;
+            }
+            loopCount++;
             int type = randomNumber.Next(0, 2);
             Rigidbody newBody = null;
             int xPosition = randomNumber.Next(100, 700);
@@ -50,11 +69,11 @@ public class Game1 : Game
 
             if (type == 0)
             {
-                Rigidbody.createBox(new AbhinavVector(xPosition, yPosition), 40, 40, 1, 1f, false, out newBody);
+                Rigidbody.createBox(new AbhinavVector(xPosition, yPosition), 40, 40, 1, 1f, isStatic, out newBody);
             }
             else
             {
-                Rigidbody.createCircle(new AbhinavVector(xPosition, yPosition), 20, 1, 1, false, out newBody);
+                Rigidbody.createCircle(new AbhinavVector(xPosition, yPosition), 20, 1, 1, isStatic, out newBody);
             }
 
             bool isColliding = false;
@@ -104,6 +123,11 @@ public class Game1 : Game
 
             attempts++;
         }
+        Rigidbody.createBox(new AbhinavVector(400, 400), 500, 50, 0.5f, 0.7f, true, out groundBody); //This is the body on the ground that is flat
+        Rigidbody.createBox(new AbhinavVector(600, 200), 200, 20, 0.5f, 0.7f, true, out slantedStaticBody); //This is the body on the ground that is flat
+        slantedStaticBody.rotateBody(-MathF.PI / 4);
+        this.world.addBodies(groundBody);
+        this.world.addBodies(slantedStaticBody);
     }
     protected override void LoadContent()
     {
@@ -120,30 +144,51 @@ public class Game1 : Game
             Exit();
 
         // TODO: Add your update logic here
-        world.timeStep((float)gameTime.ElapsedGameTime.TotalSeconds);
         float xDirection = 0f;
         float yDirection = 0f;
-        float speed = 80f;
         float forceMagnitude = 400000f; //This is equivalent to speed and is a parameter that will be multiplied by the NORMALIZED force vector
-        keyboardState = Keyboard.GetState();
-        if (keyboardState.IsKeyDown(Keys.Up))
+        AbhinavVector clickPosition = new AbhinavVector(); //This will record the position of mouse input based on screen coordinates
+        world.timeStep((float)gameTime.ElapsedGameTime.TotalSeconds);
+        previousKeyboardState = currentKeyboardState;
+        currentKeyboardState = Keyboard.GetState();
+        previousMouseState = currentMouseState;
+        currentMouseState = Mouse.GetState();
+        if (currentMouseState.LeftButton == ButtonState.Pressed && previousMouseState.LeftButton == ButtonState.Released)
+        {
+            clickPosition = new AbhinavVector(currentMouseState.X, currentMouseState.Y);
+            Rigidbody.createBox(clickPosition, 40, 40, 0.5f, 1f, false, out droppingBody);
+            rigidbodiesList.Add(droppingBody);
+            this.world.addBodies(droppingBody);
+        }
+        if (currentMouseState.RightButton == ButtonState.Pressed && previousMouseState.RightButton == ButtonState.Released)
+        {
+            clickPosition = new AbhinavVector(currentMouseState.X, currentMouseState.Y);
+            Rigidbody.createCircle(clickPosition, 20, 0.5f, 1f, false, out droppingBody);
+            rigidbodiesList.Add(droppingBody);
+            this.world.addBodies(droppingBody);
+        }
+        if (currentKeyboardState.IsKeyDown(Keys.A) && previousKeyboardState.IsKeyUp(Keys.A))
+        {
+            Console.WriteLine(this.world.getBodyCount());
+        }
+        if (currentKeyboardState.IsKeyDown(Keys.Up))
         {
             yDirection--;//This is because the coordinates of the screen start from (0,0) on the top-left corner and the positive direction is downards
         }
-        if (keyboardState.IsKeyDown(Keys.Down))
+        if (currentKeyboardState.IsKeyDown(Keys.Down))
         {
             yDirection++;//This is because the coordinates of the screen start from (0,0) on the top-left corner and the negative direction is upwards
         }
-        if (keyboardState.IsKeyDown(Keys.Left))
+        if (currentKeyboardState.IsKeyDown(Keys.Left))
         {
             xDirection--;
         }
-        if (keyboardState.IsKeyDown(Keys.Right))
+        if (currentKeyboardState.IsKeyDown(Keys.Right))
         {
             xDirection++;
         }
 
-        if (xDirection != 0 || yDirection != 0)
+        if ((xDirection != 0 || yDirection != 0 )&& generateRandomBodies == true)
         {
             /*
             This implementation of the player's motion checks the direction of motion by sheer change in position
@@ -161,29 +206,29 @@ public class Game1 : Game
             rigidbodiesList[0].addForce(forceVector);
             
         }
-        for (int i = 0; i < rigidbodiesList.Count; i++)
-        {
-            Console.WriteLine(rigidbodiesList[i].mass);
-        }
-        if (keyboardState.IsKeyDown(Keys.R))
+        if (currentKeyboardState.IsKeyDown(Keys.R) && generateRandomBodies == true)
         {
             rigidbodiesList[playerInt].rotateBody(((float)Math.PI / 2f) * (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
         base.Update(gameTime);
     }
-
-
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
-        int test = 0;
+        int count = 0;
         // TODO: Add your drawing code here
         spriteBatch.Begin();
+        CustomFunctions.DrawBox(GraphicsDevice, spriteBatch, pixel, groundBody.getTransformedVertices(), Color.Red, Color.Gray, true); //Draws the ground
+        CustomFunctions.DrawBox(GraphicsDevice, spriteBatch, pixel, slantedStaticBody.getTransformedVertices(), Color.Red, Color.Gray, true); //Draws the ground
+        foreach (AbhinavVector contactPoint in world.contactList)
+        {
+            spriteBatch.Draw(pixel, typeConverter.ToVector(contactPoint), null, Color.Blue, 0f, Vector2.Zero, new Vector2(4, 4), SpriteEffects.None, 0f);
+        }
         foreach (Rigidbody testBody in rigidbodiesList)
         {
             if (testBody.shapeType == typeOfShape.Box)
             {
-                if (test != 2)
+                if (count != 0) //Every box other than the player character is yellow
                 {
                     CustomFunctions.DrawBox(GraphicsDevice, spriteBatch, pixel, testBody.getTransformedVertices(), Color.Black, Color.Yellow, true);
                 }
@@ -195,10 +240,16 @@ public class Game1 : Game
             }
             if (testBody.shapeType == typeOfShape.Circle)
             {
-                CustomFunctions.DrawCircle(GraphicsDevice, spriteBatch, pixel, (int)testBody.position.X, (int)testBody.position.Y, (int)testBody.radius, 12, Color.Black, true, Color.Red);
-                Debug.WriteLine("Circle Drawn");
+                if (count != 0)
+                {
+                    CustomFunctions.DrawCircle(GraphicsDevice, spriteBatch, pixel, (int)testBody.position.X, (int)testBody.position.Y, (int)testBody.radius, 12, Color.Black, true, Color.Red);
+                }
+                else
+                {
+                    CustomFunctions.DrawCircle(GraphicsDevice, spriteBatch, pixel, (int)testBody.position.X, (int)testBody.position.Y, (int)testBody.radius, 12, Color.Black, true, Color.Orange);
+                }
             }
-            test++;
+            count++;
         }
         //CustomFunctions.DrawLine(spriteBatch, pixel, typeConverter.ToVector(AbhinavVector.zeroVector), new Vector2(5,0), Color.Green, 10);
         //The (0,0) coordinate is the top-left corner of the screen
